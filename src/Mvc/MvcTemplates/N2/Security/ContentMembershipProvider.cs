@@ -257,7 +257,14 @@ namespace N2.Security
 				return null;
 			}
 
-			// TODO: RequiresUniqueEmail validation
+            if (requiresUniqueEmail)
+            {
+                if (!string.IsNullOrEmpty(GetUserNameByEmail(email)))
+                {
+                    status = MembershipCreateStatus.DuplicateEmail;
+                    return null;
+                }
+            } 
 
 			var args = new ValidatePasswordEventArgs(username, password, true);
 			OnValidatingPassword(args);
@@ -393,17 +400,22 @@ namespace N2.Security
             return users.Select(u => u.GetMembershipUser(Name)).FirstOrDefault();
 		}
 
-		public override string GetUserNameByEmail(string email)
-		{
-			N2.Security.Items.UserList userContainer = Bridge.GetUserContainer(false);
-			if (userContainer == null)
-				return null;
-			var userNames = Bridge.Repository.Select(Parameter.Equal("Email", email) & Parameter.TypeEqual(typeof(User).Name) & Parameter.Equal("Parent", userContainer),
-				"Name").Select(d => d["Name"]);
-            return userNames.OfType<string>().FirstOrDefault();
-		}
+        public override string GetUserNameByEmail(string email)
+        {
+            N2.Security.Items.UserList userContainer = Bridge.GetUserContainer(false);
+            if (userContainer == null)
+                return null;
 
-		public override string ResetPassword(string username, string answer)
+            IList<ContentItem> users = Bridge.Repository.Find(
+                Parameter.TypeEqual(typeof(N2.Security.Items.User).Name)
+                & Parameter.Equal("Parent", userContainer)).ToList();
+
+            var userNames = users.Where(x => x.Details["Email"].ToString() == email).Select(x => x.Name);
+
+            return userNames.FirstOrDefault();
+        }
+
+        public override string ResetPassword(string username, string answer)
 		{
 			if (!EnablePasswordReset)
 				throw new NotSupportedException("Password reset is not supported");
